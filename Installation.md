@@ -106,7 +106,7 @@ While the individual container commands above work well for understanding the co
 - Simplified container management and debugging
 - Easy to version control and share with team members
 
-The complete configuration for both Kafka and Kafka UI has been combined into a single `docker-compose.yaml` file located in the `/installation` directory. This compose file encapsulates all the environment variables, network settings, and port mappings needed for a fully functional Kafka development environment.
+The complete configuration for both Kafka and Kafka UI has been combined into a single `docker-compose.yaml`. Those compose files located in the `/installation` directory. these compose files encapsulate all the environment variables, network settings, and port mappings needed for a fully functional Kafka development environment.
 
 ### Starting the Stack
 
@@ -139,4 +139,4 @@ docker-compose down # for docker
 
 **Review the Docker Compose Configuration:**
 
-Examine the `docker-compose.yaml` file in the `/installation` directory to understand the complete setup and customize it for your needs.
+Examine the `docker-compose.yaml` files in the `/installation` directory to understand the complete setup and customize it for your needs.
