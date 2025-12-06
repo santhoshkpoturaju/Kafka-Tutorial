@@ -1,0 +1,44 @@
+version: "3.8"
+
+services:
+  kafka:
+    image: apache/kafka:4.1.1
+    container_name: kafka
+    networks:
+      - kafkanet
+    ports:
+      - "9092:9092"
+      - "19092:19092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+
+      # --- Listeners ---
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,EXTERNAL://:19092,CONTROLLER://:29093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,EXTERNAL://localhost:19092"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+
+      # --- Protocols ---
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
+
+      # --- KRaft quorum ---
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:29093"
+
+      CLUSTER_ID: "5L6g3nShT-eMCtK--X86sw"
+
+    restart: unless-stopped
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui
+    container_name: kafka-ui
+    networks:
+      - kafkanet
+    ports:
+      - "8080:8080"
+    environment:
+      DYNAMIC_CONFIG_ENABLED: "true"
+    restart: unless-stopped
+
+networks:
+  kafkanet:
+    driver: bridge
