@@ -140,3 +140,322 @@ docker-compose down # for docker
 **Review the Docker Compose Configuration:**
 
 Examine the `docker-compose.yaml` files in the `/installation` directory to understand the complete setup and customize it for your needs.
+
+
+# Single Instance - Kubernetes Based
+
+## Using Manifest File
+
+Run the 1.manifest.yaml file to spin up the kafka cluster which is going to setup single node kafka cluster and also Kafka UI. To apply this manifest file, run the following command
+
+```bash
+kubectl apply -f 1.manifest.yaml
+kubectl get pods -n kafka-lab
+kubectl port-forward -n kafka-lab svc/kafka 9092:9092 19092:19092 &
+kubectl port-forward -n kafka-lab svc/kafka-ui 8080:8080 &
+```
+
+
+# Helm-Based Deployment
+
+Helm is a package manager for Kubernetes that simplifies complex deployments through templated charts. This section covers deploying Apache Kafka to a Kubernetes cluster using Helm and the Bitnami Kafka chart.
+
+## Prerequisites
+
+Before proceeding with Helm deployment, ensure you have:
+- A running Kubernetes cluster (local or cloud-based)
+- `kubectl` configured and authenticated to your cluster
+- Helm 3.x installed on your local machine
+- Sufficient cluster resources (CPU, memory, storage)
+
+## Understanding Helm Charts
+
+A Helm chart is a collection of YAML templates that define Kubernetes resources. The Bitnami Kafka chart provides:
+- Kafka brokers with KRaft mode
+- ConfigMaps for configuration management
+- StatefulSets for stateful workload management
+- Services for network exposure
+- PersistentVolumeClaims for data persistence
+- RBAC (Role-Based Access Control) definitions
+
+## Adding the Bitnami Repository
+
+The Bitnami repository contains production-ready Helm charts maintained by VMware. Before deploying Kafka, add this repository to your Helm installation:
+
+```bash
+helm repo add bitnami https://charts.bitnami.com/bitnami
+```
+
+This command registers the Bitnami charts repository, making all their charts available for installation.
+
+## Updating Helm Repository Cache
+
+After adding the repository, update your local Helm cache to fetch the latest chart versions:
+
+```bash
+helm repo update
+```
+
+This ensures you have access to the most recent versions of available charts and security patches.
+
+## Deploying Kafka Using Helm
+
+Deploy the Kafka cluster using the Bitnami chart with a custom values configuration file:
+
+```bash
+helm install kafka oci://registry-1.docker.io/bitnamicharts/kafka -n kafka-lab --create-namespace -f installation/kubernetes-based/2.values.kafka.yaml 
+```
+
+**Command Breakdown:**
+- `helm install`: Installs a new release
+- `kafka`: Name of the Helm release (used for managing, upgrading, and uninstalling)
+- `oci://registry-1.docker.io/bitnamicharts/kafka`: OCI registry reference to the Bitnami Kafka chart
+- `-n kafka-lab`: Specifies the Kubernetes namespace where Kafka will be deployed (created if it doesn't exist)
+- `--create-namespace`: Creates the namespace if it doesn't already exist
+- `-f installation/kubernetes-based/2.values.kafka.yaml`: Path to custom values file that overrides default chart configuration
+
+## Custom Values File
+
+The `2.values.kafka.yaml` file contains customizations specific to your environment, such as:
+- Number of Kafka replicas
+- Resource requests and limits (CPU, memory)
+- Storage configuration
+- Authentication and authorization settings
+- Listener and advertised listener configurations
+
+Review and modify this file according to your deployment requirements before running the helm install command. But for simiplicity, i kept everything default, except image path which is mandatory as per bitmani strcucture change.
+
+## Monitoring Deployment Progress
+
+After running the helm install command, monitor the deployment status:
+
+```bash
+kubectl get pods -n kafka-lab
+```
+
+Wait until all Kafka pods show `Running` status, which may take several minutes depending on your cluster resources.
+
+# Sample Output as given below
+```bash
+varma@macoss-MacBook-Pro Kafka-Tutorial % helm install kafka oci://registry-1.docker.io/bitnamicharts/kafka -n kafka-lab --create-namespace -f installation/kubernetes-based/2.values.kafka.yaml 
+Pulled: registry-1.docker.io/bitnamicharts/kafka:32.4.3
+Digest: sha256:12b98a1b358a6bc10c498817c801bd49e4a9d4c965af8acbe5a70764ec836997
+I1208 19:29:35.231853   25468 warnings.go:110] "Warning: spec.SessionAffinity is ignored for headless services"
+NAME: kafka
+LAST DEPLOYED: Mon Dec  8 19:29:34 2025
+NAMESPACE: kafka-lab
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+NOTES:
+CHART NAME: kafka
+CHART VERSION: 32.4.3
+APP VERSION: 4.0.0
+
+⚠ WARNING: Since August 28th, 2025, only a limited subset of images/charts are available for free.
+    Subscribe to Bitnami Secure Images to receive continued support and security updates.
+    More info at https://bitnami.com and https://github.com/bitnami/containers/issues/83267
+
+** Please be patient while the chart is being deployed **
+
+Kafka can be accessed by consumers via port 9092 on the following DNS name from within your cluster:
+
+    kafka.kafka-lab.svc.cluster.local
+
+Each Kafka broker can be accessed by producers via port 9092 on the following DNS name(s) from within your cluster:
+
+    kafka-controller-0.kafka-controller-headless.kafka-lab.svc.cluster.local:9092
+    kafka-controller-1.kafka-controller-headless.kafka-lab.svc.cluster.local:9092
+    kafka-controller-2.kafka-controller-headless.kafka-lab.svc.cluster.local:9092
+
+The CLIENT listener for Kafka client connections from within your cluster have been configured with the following security settings:
+    - SASL authentication
+
+To connect a client to your Kafka, you need to create the 'client.properties' configuration files with the content below:
+
+security.protocol=SASL_PLAINTEXT
+sasl.mechanism=SCRAM-SHA-256
+sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required \
+    username="user1" \
+    password="$(kubectl get secret kafka-user-passwords --namespace kafka-lab -o jsonpath='{.data.client-passwords}' | base64 -d | cut -d , -f 1)";
+
+To create a pod that you can use as a Kafka client run the following commands:
+
+    kubectl run kafka-client --restart='Never' --image docker.io/bitnamilegacy/kafka:4.0.0-debian-12-r10 --namespace kafka-lab --command -- sleep infinity
+    kubectl cp --namespace kafka-lab /path/to/client.properties kafka-client:/tmp/client.properties
+    kubectl exec --tty -i kafka-client --namespace kafka-lab -- bash
+
+    PRODUCER:
+        kafka-console-producer.sh \
+            --producer.config /tmp/client.properties \
+            --bootstrap-server kafka.kafka-lab.svc.cluster.local:9092 \
+            --topic test
+
+    CONSUMER:
+        kafka-console-consumer.sh \
+            --consumer.config /tmp/client.properties \
+            --bootstrap-server kafka.kafka-lab.svc.cluster.local:9092 \
+            --topic test \
+            --from-beginning
+
+WARNING: There are "resources" sections in the chart not set. Using "resourcesPreset" is not recommended for production. For production installations, please set the following values according to your workload needs:
+  - controller.resources
+  - defaultInitContainers.prepareConfig.resources
++info https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+
+⚠ SECURITY WARNING: Original containers have been substituted. This Helm chart was designed, tested, and validated on multiple platforms using a specific set of Bitnami and Tanzu Application Catalog containers. Substituting other containers is likely to cause degraded security and performance, broken chart features, and missing environment variables.
+
+Substituted images detected:
+  - docker.io/bitnamilegacy/kafka:4.0.0-debian-12-r10
+
+⚠ WARNING: Original containers have been substituted for unrecognized ones. Deploying this chart with non-standard containers is likely to cause degraded security and performance, broken chart features, and missing environment variables.
+
+Unrecognized images:
+  - docker.io/bitnamilegacy/kafka:4.0.0-debian-12-r10
+varma@macoss-MacBook-Pro Kafka-Tutorial % 
+```
+
+# Kafka UI Installation
+
+While Helm charts for Kafka UI are available, this guide uses a Kubernetes manifest file for simplicity and consistency with the earlier sections. However, you can optionally deploy Kafka UI via Helm by searching for community or Bitnami-maintained Helm charts.
+
+## Deploying Kafka UI via Manifest
+
+Apply the Kafka UI manifest file to deploy the web interface into your Kubernetes cluster:
+
+```bash
+kubectl apply -f installation/kubernetes-based/3.kafka-ui-manifest.yaml
+```
+
+This command creates all necessary Kubernetes resources (Deployment, Service, ConfigMap) defined in the manifest file.
+
+## Accessing Kafka UI
+
+After the Kafka UI pod is running, create a port-forward to access the web interface locally:
+
+```bash
+kubectl port-forward -n kafka-ui svc/kafka-ui 8080:8080
+```
+
+**What this command does:**
+- `port-forward`: Establishes a tunnel from your local machine to the Kafka UI service
+- `-n kafka-ui`: Specifies the namespace where Kafka UI is running
+- `svc/kafka-ui`: Forwards to the kafka-ui service
+- `8080:8080`: Maps local port 8080 to service port 8080
+
+Once the port-forward is established, open your browser and navigate to `http://localhost:8080` to access the Kafka UI dashboard.
+
+## Verifying Kafka UI Deployment
+
+Check that the Kafka UI pod is running:
+
+```bash
+kubectl get pods -n kafka-ui -l app=kafka-ui
+```
+
+View the Kafka UI logs for debugging:
+
+```bash
+kubectl logs -n kafka-ui -l app=kafka-ui
+```
+
+
+
+## Connecting to Kafka Cluster
+
+The Helm deployment configured Kafka with SASL (Simple Authentication and Security Layer) authentication, requiring credentials to connect. This section provides the necessary steps to authenticate and establish connections.
+
+### Retrieving Authentication Credentials
+
+Extract the client password from the Kubernetes secret created during Helm installation:
+
+```bash
+$(kubectl get secret kafka-user-passwords --namespace kafka-lab -o jsonpath='{.data.client-passwords}' | base64 -d | cut -d , -f 1)
+```
+
+**Command Breakdown:**
+- `kubectl get secret`: Retrieves the secret containing user passwords
+- `kafka-user-passwords`: The name of the secret created by the Helm chart
+- `--namespace kafka-lab`: Specifies the namespace where the secret is stored
+- `-o jsonpath='{.data.client-passwords}'`: Extracts the client-passwords field
+- `| base64 -d`: Decodes the base64-encoded password
+- `| cut -d , -f 1`: Extracts the first password (if multiple exist)
+
+### Creating a Kafka Client Pod
+
+To interact with the Kafka cluster from within Kubernetes, create a dedicated client pod:
+
+```bash
+kubectl run kafka-client --restart='Never' --image docker.io/bitnamilegacy/kafka:4.0.0-debian-12-r10 --namespace kafka-lab --command -- sleep infinity
+```
+
+This pod remains running indefinitely, allowing you to execute Kafka commands inside the cluster network.
+
+### Copying Client Configuration
+
+Transfer the client configuration file (containing SASL credentials) to the client pod:
+
+```bash
+kubectl cp --namespace kafka-lab /path/to/client.properties kafka-client:/tmp/client.properties
+```
+
+Replace `/path/to/client.properties` with the actual path to your client configuration file on your local machine.
+
+### Accessing the Client Pod
+
+Execute an interactive shell within the client pod:
+
+```bash
+kubectl exec --tty -i kafka-client --namespace kafka-lab -- bash
+```
+
+This command opens a bash shell inside the pod, allowing you to run Kafka commands.
+
+### Producing Messages
+
+Once inside the client pod, use the Kafka producer to send messages:
+
+```bash
+kafka-console-producer.sh \
+    --producer.config /tmp/client.properties \
+    --bootstrap-server kafka.kafka-lab.svc.cluster.local:9092 \
+    --topic test
+```
+
+**Configuration Details:**
+- `--producer.config`: Path to the client properties file with SASL credentials
+- `--bootstrap-server`: Kubernetes internal DNS name of the Kafka cluster
+- `--topic test`: Target topic for message production
+
+### Consuming Messages
+
+Use the Kafka consumer to read messages from a topic:
+
+```bash
+kafka-console-consumer.sh \
+    --consumer.config /tmp/client.properties \
+    --bootstrap-server kafka.kafka-lab.svc.cluster.local:9092 \
+    --topic test \
+    --from-beginning
+```
+
+**Configuration Details:**
+- `--consumer.config`: Path to the client properties file with SASL credentials
+- `--bootstrap-server`: Kubernetes internal DNS name of the Kafka cluster
+- `--topic test`: Source topic to consume messages from
+- `--from-beginning`: Reads all messages from the topic beginning (useful for testing)
+
+### Client Configuration File Template
+
+Create a `client.properties` file with the following content, replacing the password placeholder:
+
+```
+security.protocol=SASL_PLAINTEXT
+sasl.mechanism=SCRAM-SHA-256
+sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required \
+    username="user1" \
+    password="<YOUR_PASSWORD>";
+```
+
+Follow the video tutorials included in this repository for step-by-step instructions on connecting to the Kafka cluster via the UI and performing producer/consumer operations.

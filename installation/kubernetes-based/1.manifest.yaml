@@ -1,0 +1,129 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kafka-lab
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-pvc
+  namespace: kafka-lab
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: kafka-lab
+spec:
+  selector:
+    app: kafka
+  type: NodePort
+  ports:
+    - name: internal
+      port: 9092
+      targetPort: 9092
+    - name: external
+      port: 19092
+      targetPort: 19092
+      nodePort: 30092
+    - name: controller
+      port: 29093
+      targetPort: 29093
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: kafka-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+        - name: kafka
+          image: apache/kafka:4.1.1
+          ports:
+            - containerPort: 9092
+            - containerPort: 19092
+            - containerPort: 29093
+          env:
+            - name: KAFKA_NODE_ID
+              value: "1"
+            - name: KAFKA_PROCESS_ROLES
+              value: "broker,controller"
+
+            # --- listeners ---
+            - name: KAFKA_LISTENERS
+              value: "PLAINTEXT://:9092,EXTERNAL://:19092,CONTROLLER://:29093"
+
+            # --- advertised (IMPORTANT FIX) ---
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: "PLAINTEXT://kafka:9092,EXTERNAL://localhost:30092"
+
+            - name: KAFKA_INTER_BROKER_LISTENER_NAME
+              value: "PLAINTEXT"
+
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
+              value: "CONTROLLER"
+
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
+
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: "1@kafka:29093"
+
+            - name: CLUSTER_ID
+              value: "5L6g3nShT-eMCtK--X86sw"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-ui
+  namespace: kafka-lab
+spec:
+  selector:
+    app: kafka-ui
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-ui
+  namespace: kafka-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-ui
+  template:
+    metadata:
+      labels:
+        app: kafka-ui
+    spec:
+      containers:
+        - name: kafka-ui
+          image: provectuslabs/kafka-ui
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DYNAMIC_CONFIG_ENABLED
+              value: "true"
+            # - name: KAFKA_CLUSTERS_0_NAME
+            #   value: "local-k8s"
+            # - name: KAFKA_CLUSTERS_0_BOOTSTRAP_SERVERS
+            #   value: "kafka:9092"
